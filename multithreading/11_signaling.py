@@ -4,30 +4,6 @@ import time
 from enum import Enum
 
 
-class BankTerminal:
-
-    def __init__(self, port, ip_address):
-        self.port = port
-        self.ip_address = ip_address
-        self.protocol = Protocol(port, ip_address)
-        self.protocol.message_received += self.on_message_received
-
-        self.operation_signal = threading.Event()
-
-    def on_message_received(self, status):
-        print(f'signaling for event:{status}')
-        self.operation_signal.set()
-
-    def purchase(self, amount):
-        def process_purchase():
-            purchase_op_code = 1
-            self.protocol.send(purchase_op_code, amount)
-
-            self.operation_signal.clear() # сбросить сигнал после возможного set, чтобы сработала боликровка на waiting
-            print('\nwaiting for signal')
-            self.operation_signal.wait()
-
-
 class Event:
 
     def __init__(self):
@@ -82,3 +58,44 @@ class Protocol:
         # 3rd party lib response
         finished = random.randint(0, 1)
         return OperationStatus.FINISHED if finished == 0 else OperationStatus.FAULTED
+
+
+class BankTerminal:
+
+    def __init__(self, port, ip_address):
+        self.port = port
+        self.ip_address = ip_address
+        self.protocol = Protocol(port, ip_address)
+        self.protocol.message_received += self.on_message_received
+
+        self.operation_signal = threading.Event()
+
+    def on_message_received(self, status):
+        print(f'signaling for event:{status}')
+        self.operation_signal.set()
+
+    def purchase(self, amount):
+        def process_purchase():
+            purchase_op_code = 1
+            self.protocol.send(purchase_op_code, amount)
+
+            self.operation_signal.clear() # сбросить сигнал после возможного set, чтобы сработала боликровка на waiting
+            print('\nwaiting for signal')
+            self.operation_signal.wait()
+            print('Purchase finished')
+
+        t = threading.Thread(target=process_purchase)
+        t.start()
+
+        return t
+
+
+if __name__ == '__main__':
+    bt = BankTerminal(10, '192.0.0.1')
+    t1 = bt.purchase(20)
+    print('Main is waiting for purchase 1')
+    t1.join()
+    t2 = bt.purchase(30)
+    print('Main is waiting for purchase 2')
+    t2.join()
+    print('End of main')
